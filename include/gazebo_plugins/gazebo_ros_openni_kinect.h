@@ -74,13 +74,13 @@ namespace gazebo
     public: virtual void Advertise();
 
     /// \brief Update the controller
-    protected: virtual void OnNewDepthFrame(const float *_image, 
-                   unsigned int _width, unsigned int _height, 
+    protected: virtual void OnNewDepthFrame(const float *_image,
+                   unsigned int _width, unsigned int _height,
                    unsigned int _depth, const std::string &_format);
 
     /// \brief Update the controller
-    protected: virtual void OnNewImageFrame(const unsigned char *_image, 
-                   unsigned int _width, unsigned int _height, 
+    protected: virtual void OnNewImageFrame(const unsigned char *_image,
+                   unsigned int _width, unsigned int _height,
                    unsigned int _depth, const std::string &_format);
 
     /// \brief push point cloud data into ros topic
@@ -140,6 +140,8 @@ namespace gazebo
     protected: virtual void PublishCameraInfo();
 
     private: event::ConnectionPtr load_connection_;
+
+    private: float* depth_image_ptr_;
   };
 
 }

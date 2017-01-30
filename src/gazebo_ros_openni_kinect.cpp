@@ -49,6 +49,7 @@ GazeboRosOpenniKinect::GazeboRosOpenniKinect()
   this->depth_info_connect_count_ = 0;
   this->depth_image_connect_count_ = 0;
   this->last_depth_image_camera_info_update_time_ = common::Time(0);
+  depth_image_ptr_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,9 +190,9 @@ void GazeboRosOpenniKinect::OnNewDepthFrame(const float *_image,
     return;
 
 # if GAZEBO_MAJOR_VERSION >= 7
-  this->depth_sensor_update_time_ = this->parentSensor->LastUpdateTime();
+  this->depth_sensor_update_time_ = this->parentSensor->LastMeasurementTime();
 # else
-  this->depth_sensor_update_time_ = this->parentSensor->GetLastUpdateTime();
+  this->depth_sensor_update_time_ = this->parentSensor->GetLastMeasurementTime();
 # endif
   if (this->parentSensor->IsActive())
   {
@@ -203,11 +204,18 @@ void GazeboRosOpenniKinect::OnNewDepthFrame(const float *_image,
     }
     else
     {
-      if (this->point_cloud_connect_count_ > 0)
-        this->FillPointdCloud(_image);
-
       if (this->depth_image_connect_count_ > 0)
         this->FillDepthImage(_image);
+
+      // std::cout << "[Depth callback] Sensor time: " << sensor_update_time_.nsec << " Depth sensor time: " << depth_sensor_update_time_.nsec << std::endl;
+
+      // Only fill the pointcloud if the sensor and depth timestamp match.
+      if (sensor_update_time_ == depth_sensor_update_time_) {
+        if (this->point_cloud_connect_count_ > 0)
+          this->FillPointdCloud(_image);
+      } else {
+        depth_image_ptr_ = const_cast<float*>(_image);
+      }
     }
   }
   else
@@ -231,9 +239,9 @@ void GazeboRosOpenniKinect::OnNewImageFrame(const unsigned char *_image,
 
   //ROS_ERROR("camera_ new frame %s %s",this->parentSensor_->GetName().c_str(),this->frame_name_.c_str());
 # if GAZEBO_MAJOR_VERSION >= 7
-  this->sensor_update_time_ = this->parentSensor_->LastUpdateTime();
+  this->sensor_update_time_ = this->parentSensor_->LastMeasurementTime();
 # else
-  this->sensor_update_time_ = this->parentSensor_->GetLastUpdateTime();
+  this->sensor_update_time_ = this->parentSensor_->GetLastMeasurementTime();
 # endif
 
   if (this->parentSensor->IsActive())
@@ -246,8 +254,18 @@ void GazeboRosOpenniKinect::OnNewImageFrame(const unsigned char *_image,
     }
     else
     {
+      //std::cout << "[Image callback] Sensor time: " << sensor_update_time_.nsec << " Depth sensor time: " << depth_sensor_update_time_.nsec << std::endl;
+
       if ((*this->image_connect_count_) > 0)
         this->PutCameraData(_image);
+
+      // Only fill the pointcloud if the sensor and depth timestamp match.
+      if (sensor_update_time_ == depth_sensor_update_time_ && (depth_image_ptr_ != nullptr) ) {
+        if (this->point_cloud_connect_count_ > 0) {
+          this->FillPointdCloud(depth_image_ptr_);
+          depth_image_ptr_ = nullptr;
+        }
+      }
     }
   }
   else
@@ -447,15 +465,14 @@ void GazeboRosOpenniKinect::PublishCameraInfo()
   if (this->depth_info_connect_count_ > 0)
   {
 # if GAZEBO_MAJOR_VERSION >= 7
-    this->sensor_update_time_ = this->parentSensor_->LastUpdateTime();
+    this->sensor_update_time_ = this->parentSensor_->LastMeasurementTime();
 # else
-    this->sensor_update_time_ = this->parentSensor_->GetLastUpdateTime();
+    this->sensor_update_time_ = this->parentSensor_->GetLastMeasurementTime();
 # endif
-    common::Time cur_time = this->world_->GetSimTime();
-    if (cur_time - this->last_depth_image_camera_info_update_time_ >= this->update_period_)
+    if (this->sensor_update_time_ - this->last_depth_image_camera_info_update_time_ >= this->update_period_)
     {
       this->PublishCameraInfo(this->depth_image_camera_info_pub_);
-      this->last_depth_image_camera_info_update_time_ = cur_time;
+      this->last_depth_image_camera_info_update_time_ = this->sensor_update_time_;
     }
   }
 }
